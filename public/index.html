@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lenzo Scraper Hub</title>
+    <title>Lenzo Generator</title>
     <style>
         :root { --bg: #0f1115; --card: #181b21; --border: #2a2f38; --primary: #8ab4f8; --text: #d7dae0; --success: #30d158; --danger: #ff453a; }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: ui-monospace, monospace; }
@@ -18,37 +18,64 @@
         .result-card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 20px; display: none; }
         .category-badge { display: inline-block; padding: 8px 16px; background: var(--success); color: #000; border-radius: 4px; font-weight: bold; font-size: 16px; margin-bottom: 15px; }
         
-        .header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; margin-top: 20px; }
+        .tabs { display: flex; gap: 5px; margin-bottom: 15px; flex-wrap: wrap; }
+        .tab { padding: 10px 16px; background: #000; border: 1px solid var(--border); border-radius: 6px; cursor: pointer; font-size: 14px; color: #8b93a1; }
+        .tab.active { background: var(--primary); color: #000; font-weight: bold; border-color: var(--primary); }
+        
+        .content-box { display: none; }
+        .content-box.active { display: block; }
+        
+        .header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
         h3 { font-size: 14px; text-transform: uppercase; color: #8b93a1; }
         .copy-btn { background: var(--primary); color: #000; padding: 8px 12px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 12px; }
         
         pre { background: #000; padding: 15px; border-radius: 6px; max-height: 400px; overflow-y: auto; font-size: 12px; white-space: pre-wrap; word-break: break-all; }
         .media-link { display: block; color: var(--danger); margin-bottom: 8px; font-size: 13px; text-decoration: none; }
+        .api-item { border-bottom: 1px solid #333; padding: 10px 0; }
+        .api-url { color: var(--success); font-weight: bold; word-break: break-all; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🕷️ Lenzo Universal Scraper</h1>
-        <p style="color:#8b93a1; margin-bottom:20px;">Paste a URL. The engine will auto-scroll, sniff hidden APIs, and classify the site.</p>
+        <h1>🕷️ Lenzo Generator</h1>
+        <p style="color:#8b93a1; margin-bottom:20px;">Paste a URL to find its hidden APIs.</p>
 
         <div class="search-bar">
-            <input type="text" id="urlInput" placeholder="https://audiomack.com" onkeypress="if(event.key==='Enter') scrape()">
+            <input type="text" id="urlInput" placeholder="https://ng.soccerway.com" onkeypress="if(event.key==='Enter') scrape()">
             <button id="scanBtn" onclick="scrape()">Analyze Site</button>
         </div>
 
         <div class="result-card" id="resultCard">
             <div id="categoryDisplay"></div>
 
-            <div class="header-row">
-                <h3>🧠 Smart Extracted Data</h3>
-                <button class="copy-btn" onclick="copyData('smartData')">Copy JSON</button>
+            <div class="tabs" id="tabs">
+                <!-- FIXED: Passing 'this' to the function -->
+                <div class="tab active" onclick="showTab('apis', this)">Hidden APIs</div>
+                <div class="tab" onclick="showTab('rawtext', this)">Raw Text</div>
+                <div class="tab" onclick="showTab('media', this)">Media Links</div>
             </div>
-            <pre id="smartDataOutput">No data found.</pre>
 
-            <div class="header-row">
-                <h3>🎬 Direct Media Links</h3>
+            <div class="content-box active" id="box-apis">
+                <div class="header-row">
+                    <h3>🔌 Captured API Endpoints</h3>
+                </div>
+                <div id="apiList">No APIs found.</div>
             </div>
-            <div id="mediaLinksOutput">No media links found.</div>
+
+            <div class="content-box" id="box-rawtext">
+                <div class="header-row">
+                    <h3>📄 Raw Text from Site</h3>
+                    <button class="copy-btn" onclick="copyData('rawText')">Copy Text</button>
+                </div>
+                <pre id="rawTextOutput">No text found.</pre>
+            </div>
+
+            <div class="content-box" id="box-media">
+                <div class="header-row">
+                    <h3>🎬 Direct Media Links</h3>
+                </div>
+                <div id="mediaLinksOutput">No media files found.</div>
+            </div>
         </div>
     </div>
 
@@ -74,7 +101,22 @@
                 document.getElementById('resultCard').style.display = 'block';
                 document.getElementById('categoryDisplay').innerHTML = `<div class="category-badge">Detected: ${data.detectedCategory}</div>`;
 
-                document.getElementById('smartDataOutput').innerText = data.smartData ? JSON.stringify(data.smartData, null, 2) : "Could not auto-detect structured data. Check the raw text in the API response.";
+                const apiList = document.getElementById('apiList');
+                apiList.innerHTML = '';
+                if (data.interceptedApis.length === 0) {
+                    apiList.innerText = "No hidden APIs intercepted. The site might be blocking the scraper or doesn't use JSON APIs.";
+                } else {
+                    data.interceptedApis.forEach((api, i) => {
+                        apiList.innerHTML += `
+                            <div class="api-item">
+                                <div class="api-url">GET ${api.url}</div>
+                                <button class="copy-btn" style="margin-top:5px;" onclick="copyApi(${i})">Copy JSON Data</button>
+                            </div>
+                        `;
+                    });
+                }
+
+                document.getElementById('rawTextOutput').innerText = data.rawText || "No text captured.";
 
                 const mediaOut = document.getElementById('mediaLinksOutput');
                 mediaOut.innerHTML = data.mediaLinks.length === 0 ? "No media files found." : "";
@@ -90,10 +132,29 @@
             }
         }
 
-        function copyData() {
-            if (!scrapedData || !scrapedData.smartData) return;
-            navigator.clipboard.writeText(JSON.stringify(scrapedData.smartData, null, 2));
-            alert("✅ Smart Data Copied!");
+        // FIXED: Using the element passed from HTML to avoid event.target bugs
+        function showTab(tabName, element) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.content-box').forEach(c => c.classList.remove('active'));
+            
+            element.classList.add('active');
+            
+            const targetBox = document.getElementById(`box-${tabName}`);
+            if (targetBox) {
+                targetBox.classList.add('active');
+            }
+        }
+
+        function copyApi(index) {
+            if (!scrapedData) return;
+            navigator.clipboard.writeText(JSON.stringify(scrapedData.interceptedApis[index].data, null, 2));
+            alert("✅ API JSON Copied!");
+        }
+
+        function copyData(type) {
+            if (!scrapedData || !scrapedData[type]) return;
+            navigator.clipboard.writeText(scrapedData[type]);
+            alert("✅ Copied!");
         }
     </script>
 </body>
