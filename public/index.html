@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lenzo Scraper Hub</title>
+    <style>
+        :root { --bg: #0f1115; --card: #181b21; --border: #2a2f38; --primary: #8ab4f8; --text: #d7dae0; --success: #30d158; --danger: #ff453a; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: ui-monospace, monospace; }
+        body { background: var(--bg); color: var(--text); padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        .container { width: 100%; max-width: 900px; }
+        
+        .search-bar { display: flex; gap: 10px; margin-bottom: 20px; }
+        input { flex: 1; padding: 14px; background: var(--card); border: 1px solid var(--border); color: white; border-radius: 6px; font-size: 16px; }
+        button { padding: 14px 24px; background: var(--primary); color: #000; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 16px; }
+        button:disabled { opacity: 0.5; }
+        
+        .result-card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 20px; display: none; }
+        .category-badge { display: inline-block; padding: 8px 16px; background: var(--success); color: #000; border-radius: 4px; font-weight: bold; font-size: 16px; margin-bottom: 15px; }
+        
+        .header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; margin-top: 20px; }
+        h3 { font-size: 14px; text-transform: uppercase; color: #8b93a1; }
+        .copy-btn { background: var(--primary); color: #000; padding: 8px 12px; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 12px; }
+        
+        pre { background: #000; padding: 15px; border-radius: 6px; max-height: 400px; overflow-y: auto; font-size: 12px; white-space: pre-wrap; word-break: break-all; }
+        .media-link { display: block; color: var(--danger); margin-bottom: 8px; font-size: 13px; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🕷️ Lenzo Universal Scraper</h1>
+        <p style="color:#8b93a1; margin-bottom:20px;">Paste a URL. The engine will auto-scroll, sniff hidden APIs, and classify the site.</p>
+
+        <div class="search-bar">
+            <input type="text" id="urlInput" placeholder="https://audiomack.com" onkeypress="if(event.key==='Enter') scrape()">
+            <button id="scanBtn" onclick="scrape()">Analyze Site</button>
+        </div>
+
+        <div class="result-card" id="resultCard">
+            <div id="categoryDisplay"></div>
+
+            <div class="header-row">
+                <h3>🧠 Smart Extracted Data</h3>
+                <button class="copy-btn" onclick="copyData('smartData')">Copy JSON</button>
+            </div>
+            <pre id="smartDataOutput">No data found.</pre>
+
+            <div class="header-row">
+                <h3>🎬 Direct Media Links</h3>
+            </div>
+            <div id="mediaLinksOutput">No media links found.</div>
+        </div>
+    </div>
+
+    <script>
+        let scrapedData = null;
+
+        async function scrape() {
+            const url = document.getElementById('urlInput').value;
+            if (!url) return;
+
+            const btn = document.getElementById('scanBtn');
+            btn.disabled = true;
+            btn.innerText = "Queuing & Scraping...";
+            document.getElementById('resultCard').style.display = 'none';
+
+            try {
+                const res = await fetch(`/api/scrape?url=${encodeURIComponent(url)}`);
+                const data = await res.json();
+                
+                if (data.error) throw new Error(data.error);
+                scrapedData = data;
+
+                document.getElementById('resultCard').style.display = 'block';
+                document.getElementById('categoryDisplay').innerHTML = `<div class="category-badge">Detected: ${data.detectedCategory}</div>`;
+
+                document.getElementById('smartDataOutput').innerText = data.smartData ? JSON.stringify(data.smartData, null, 2) : "Could not auto-detect structured data. Check the raw text in the API response.";
+
+                const mediaOut = document.getElementById('mediaLinksOutput');
+                mediaOut.innerHTML = data.mediaLinks.length === 0 ? "No media files found." : "";
+                data.mediaLinks.forEach(link => {
+                    mediaOut.innerHTML += `<a href="${link}" target="_blank" class="media-link">▶ ${link}</a>`;
+                });
+
+            } catch (e) {
+                alert("Error: " + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "Analyze Site";
+            }
+        }
+
+        function copyData() {
+            if (!scrapedData || !scrapedData.smartData) return;
+            navigator.clipboard.writeText(JSON.stringify(scrapedData.smartData, null, 2));
+            alert("✅ Smart Data Copied!");
+        }
+    </script>
+</body>
+</html>
